@@ -1,0 +1,6 @@
+ultralytics
+opencv-python
+numpy
+pyyaml
+# Optional: if you want the external ByteTrack implementation, install it separately
+# e.g. pip install git+https://github.com/ifzhang/ByteTrack.git
