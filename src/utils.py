@@ -44,32 +44,53 @@ def detections_from_result(result):
     return np.array(dets, dtype=float)
 
 
-def draw_tracks(frame, tracks):
-    """
-    Draw bounding boxes and track ids. Accepts tracker outputs or raw detections.
-    """
+def draw_tracks_as_list(frame, tracks):
+
+    '''
+    Draws a compact list of tracks at the bottom-left of the frame.
+    Expects tracks like rows [x1,y1,x2,y2,score,cls,track_id] or STrack-like objects.
+    '''
+    h, w = frame.shape[:2]
+    lines = []
+    # Normalize tracks into lines of text
     if tracks is None:
-        return frame
-
-    for t in tracks:
+        pass
+    else:
+        #ndarray or list of rows
         try:
-            if isinstance(t, (list, tuple, np.ndarray)) and len(t) >= 7:
-                x1, y1, x2, y2, score, cls, tid = t[:7]
-            elif hasattr(t, 'tlwh') and hasattr(t, 'track_id'):
-                tlwh = t.tlwh
-                x1, y1, w, h = tlwh
-                x2 = x1 + w
-                y2 = y1 + h
-                tid = getattr(t, 'track_id', -1)
-                score = getattr(t, 'score', 0)
-                cls = getattr(t, 'cls', 0)
+            arr = np.array(tracks)
+            if arr.ndim == 2 and arr.shape[1] >= 7:
+                for row in arr:
+                    x1,y1,x2,y2,score,cls,tid = row[:7]
+                    lines.append(f"ID{int(tid)} cls{int(cls)} [{int(x1)},{int(y1)}-{int(x2)},{int(y2)}]")
             else:
-                continue
-
-            x1, y1, x2, y2 = map(int, (x1, y1, x2, y2))
-            cv2.rectangle(frame, (x1, y1), (x2, y2), (0,220,0), 2)
-            label = f"ID:{int(tid)} cls:{int(cls)}"
-            cv2.putText(frame, label, (x1, max(15, y1-6)), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0,220,0), 2)
+                # fallback: try iterate
+                for t in tracks:
+                    if hasattr(t, 'tlwh'):
+                        x,y,w_,h_ = t.tlwh
+                        x1,y1,x2,y2 = int(x), int(y), int(x+w_), int(y+h_)
+                        tid = getattr(t, 'track_id', -1)
+                        cls = getattr(t, 'cls',0)
+                        lines.append(f"ID{int(tid)} cls{int(cls)} [{int(x1)},{int(y1)}-{int(x2)},{int(y2)}]")
         except Exception:
-            continue
-    return frame
+            pass
+    # Render lines bottom_left upward
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    font_scale = 0.5
+    thickness = 1
+    line_height = 18
+    padding = 8
+
+    # background box
+    box_h = line_height * max(1, len(lines)) + padding*2
+    box_w = int(w * 0.45) # make it up to 45% of width
+    x0, y0 = 10, h - box_h - 10
+    cv2.rectangle(frame, (x0, y0), (x0 + box_w, y0 + box_h), (0, 0, 0), -1)
+    cv2.rectangle(frame, (x0,y0), (x0 + box_w, y0 + box_h), (50, 205, 50), 1)
+
+    #draw each line
+    for i, line in enumerate(lines[::-1]): #reverse so first item at bottom
+        y = y0 + box_h - padding - i * line_height - 4
+        cv2.putText(frame, line, (x0 + padding,y), font, font_scale, (200, 255, 200), thickness, cv2.LINE_AA)
+
+    return frame 
